@@ -1,11 +1,11 @@
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 int sockfd;
 struct sockaddr_in server_addr;
@@ -23,7 +23,6 @@ int main(int args, char *argv[]) {
   inet_aton(argv[1], &server_addr.sin_addr);
   server_addr.sin_family = PF_INET;
   server_addr.sin_port = htons(atoi(argv[2]));
-  // server_addr.sin_addr.s_addr = htonl(inet_aton(argv[1]));
 
   if (-1 == (sockfd = socket(PF_INET, SOCK_STREAM, 0))) {
     perror("socket");
