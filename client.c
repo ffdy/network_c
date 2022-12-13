@@ -47,7 +47,7 @@ int main(int args, char *argv[]) {
     memset(buf, 0, sizeof buf);
     scanf("%s", buf);
 
-    if (0 == strncmp(buf, "quit", 4)) {
+    if (0 == strncasecmp(buf, "quit", 4)) {
       printf("connect close\n");
       close(sockfd);
       return 0;

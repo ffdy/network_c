@@ -85,6 +85,7 @@ int main(int args, char *argv[]) {
       while (1) {
         do_len = read(newfd, buf, sizeof(buf));
         if (do_len == 0) {
+          // 连接关闭
           printf("connect from %s close\n", inet_ntoa(client_addr.sin_addr));
           close(newfd);
           return 0;
@@ -97,6 +98,7 @@ int main(int args, char *argv[]) {
       perror("fork");
       exit(1);
     } else {
+      // 很重要，父子进程都打开了这个套接字
       close(newfd);
     }
   }
