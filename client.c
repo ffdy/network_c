@@ -6,10 +6,14 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <time.h>
 
 int sockfd;
 struct sockaddr_in server_addr;
 socklen_t server_addr_len;
+
+time_t td;
+struct tm tm;
 
 char buf[1024];
 
@@ -48,6 +52,9 @@ int main(int args, char *argv[]) {
       close(sockfd);
       return 0;
     }
+
+    time(&td);
+    tm = *localtime(&td);
 
     write(sockfd, buf, strlen(buf));
     read(sockfd, buf, sizeof buf);
