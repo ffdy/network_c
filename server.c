@@ -24,11 +24,11 @@ static void sigchld_handler(int signo) {
   int status;
 
   do {
-    if (-1 == (pid = waitpid(-1, &status, WNOHANG | WUNTRACED))) {
+    if (-1 == (pid = waitpid(-1, &status, WNOHANG))) {
       perror("waitpid");
     }
     if (pid > 0) {
-      printf("Child process exited PID%d, Exit Code: %d\n", pid, status);
+      printf("Child process exited PID%d, Exit Code: %d\n", pid, WEXITSTATUS(status));
     } else if (0 == pid) {
       printf("non-blocking\n");
     }
