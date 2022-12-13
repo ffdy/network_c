@@ -5,8 +5,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 
 int sockfd;
 struct sockaddr_in server_addr;
@@ -28,26 +28,21 @@ int main(int args, char *argv[]) {
   server_addr.sin_family = PF_INET;
   server_addr.sin_port = htons(atoi(argv[2]));
 
-  if (-1 == (sockfd = socket(PF_INET, SOCK_STREAM, 0))) {
+  printf("Server IP: %s\n", inet_ntoa(server_addr.sin_addr));
+
+  if (-1 == (sockfd = socket(PF_INET, SOCK_DGRAM, 0))) {
     perror("socket");
     exit(1);
   }
 
-  if (-1 ==
-      connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr))) {
-    perror("connect");
-    exit(1);
-  }
-  printf("Connected to %s\n", inet_ntoa(server_addr.sin_addr));
-
-  int recv_len;
+  int do_len;
 
   while (1) {
     printf("Message: ");
-    memset(buf, 0, sizeof buf);
+    memset(buf, 0, sizeof(buf));
     scanf("%s", buf);
 
-    if (0 == strncasecmp(buf, "quit", 4)) {
+    if (0 == strncmp(buf, "quit", 4)) {
       printf("connect close\n");
       close(sockfd);
       return 0;
@@ -56,9 +51,18 @@ int main(int args, char *argv[]) {
     time(&td);
     tm = *localtime(&td);
 
-    write(sockfd, buf, strlen(buf));
-    read(sockfd, buf, sizeof buf);
-    printf("Send successfully\n");
+    // 注意addr_len
+    do_len = sendto(sockfd, buf, strlen(buf), 0,
+                    (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+    if (do_len == -1) {
+      perror("sendto");
+      exit(1);
+    }
+
+    recvfrom(sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&server_addr,
+             &server_addr_len);
+    printf("Recv successfully\n");
   }
   return 0;
 }
