@@ -3,10 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
+
+#define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
 
 int sockfd;
 struct sockaddr_in server_addr;
@@ -41,24 +44,42 @@ int main(int args, char *argv[]) {
   printf("Connected to %s\n", inet_ntoa(server_addr.sin_addr));
 
   int recv_len;
+  int nfds = 0;
+  fd_set readset, old_readset;
+
+  FD_ZERO(&old_readset);
+  FD_SET(STDIN_FILENO, &old_readset);
+  FD_SET(sockfd, &old_readset);
+  nfds = MAX(nfds, sockfd);
 
   while (1) {
-    printf("Message: ");
-    memset(buf, 0, sizeof buf);
-    scanf("%s", buf);
-
-    if (0 == strncasecmp(buf, "quit", 4)) {
-      printf("connect close\n");
-      close(sockfd);
-      return 0;
+    readset = old_readset;
+    if (-1 == select(nfds + 1, &readset, NULL, NULL, NULL)) {
+      perror("select");
+      exit(1);
     }
 
-    time(&td);
-    tm = *localtime(&td);
+    if (FD_ISSET(sockfd, &readset)) {
+      printf("Server: ");
+      read(sockfd, buf, sizeof(buf));
+      printf("%s\n", buf);
+    } else if (FD_ISSET(STDIN_FILENO, &readset)) {
+      printf("Message: "); 
+      memset(buf, 0, sizeof(buf));
+      scanf("%s", buf);
 
-    write(sockfd, buf, strlen(buf));
-    read(sockfd, buf, sizeof buf);
-    printf("Send successfully\n");
+      if (0 == strncasecmp(buf, "quit", 4)) {
+        printf("connect close\n");
+        close(sockfd);
+        return 0;
+      }
+
+      time(&td);
+      tm = *localtime(&td);
+
+      write(sockfd, buf, strlen(buf));
+      printf("Send successfully\n");
+    }
   }
   return 0;
 }

@@ -3,14 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/wait.h>
 
-pid_t sub_pid;
-struct sigaction sigchld_action;
+#define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
 
 int sockfd, newfd;
 struct sockaddr_in server_addr, client_addr;
@@ -18,31 +16,7 @@ socklen_t server_addr_len, client_addr_len;
 
 char buf[1024];
 
-static void sigchld_handler(int signo) {
-
-  pid_t pid;
-  int status;
-
-  do {
-    if (-1 == (pid = waitpid(-1, &status, WNOHANG | WUNTRACED))) {
-      perror("waitpid");
-    }
-    if (pid > 0) {
-      printf("Child process exited PID%d, Exit Code: %d\n", pid, status);
-    } else if (0 == pid) {
-      printf("non-blocking\n");
-    }
-  } while (pid > 0);
-}
-
 int main(int args, char *argv[]) {
-
-  sigchld_action.sa_flags = SA_RESTART;
-  sigchld_action.sa_handler = sigchld_handler;
-  if (-1 == (sigaction(SIGCHLD, &sigchld_action, NULL))) {
-    perror("sigaction");
-    exit(1);
-  }
 
   if (2 != args) {
     printf("Parameter error\n\n\tSample: %s %s\n", argv[0], "50000");
@@ -70,36 +44,44 @@ int main(int args, char *argv[]) {
     exit(1);
   }
 
-  int do_len;
   printf("Start to be connected\n");
+  int do_len, nfds = -1;
+
+  int fd_array[1024], fd_array_len = 0;
+  fd_set readset, old_readset;
+  FD_ZERO(&readset);
+  FD_ZERO(&old_readset);
+  FD_SET(sockfd, &old_readset);
+  nfds = MAX(sockfd, nfds);
 
   while (1) {
-    if (-1 == (newfd = accept(sockfd, (struct sockaddr *)&client_addr,
-                              &client_addr_len))) {
-      perror("accept");
-      exit(1);
+    readset = old_readset;
+    select(nfds, &readset, NULL, NULL, NULL);
+
+    if (FD_ISSET(sockfd, &readset)) {
+      if (-1 == (newfd = accept(sockfd, (struct sockaddr *)&client_addr,
+                                &client_addr_len))) {
+        perror("accept");
+        exit(1);
+      }
+      FD_SET(newfd, &old_readset);
+      nfds = MAX(nfds, newfd);
+      fd_array[fd_array_len++] = newfd;
     }
 
-    sub_pid = fork();
-    if (0 == sub_pid) {
-      while (1) {
-        do_len = read(newfd, buf, sizeof(buf));
+    for (int i = 0; i < fd_array_len; i++) {
+      if (FD_ISSET(fd_array[i], &readset)) {
+        do_len = read(fd_array[i], buf, sizeof(buf));
         if (do_len == 0) {
           // 连接关闭
           printf("connect from %s close\n", inet_ntoa(client_addr.sin_addr));
-          close(newfd);
+          close(fd_array[i]);
           return 0;
         }
         printf("Message from %s : %s\n", inet_ntoa(client_addr.sin_addr), buf);
 
-        write(newfd, "ACK", 3);
+        write(fd_array[i], "ACK", 3);
       }
-    } else if (-1 == sub_pid) {
-      perror("fork");
-      exit(1);
-    } else {
-      // 很重要，父子进程都打开了这个套接字
-      close(newfd);
     }
   }
 
