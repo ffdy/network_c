@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -53,6 +54,9 @@ int main(int args, char *argv[]) {
   nfds = MAX(nfds, sockfd);
 
   while (1) {
+    printf("Message: ");
+    fflush(stdout);
+
     readset = old_readset;
     if (-1 == select(nfds + 1, &readset, NULL, NULL, NULL)) {
       perror("select");
@@ -60,12 +64,12 @@ int main(int args, char *argv[]) {
     }
 
     if (FD_ISSET(sockfd, &readset)) {
-      printf("Server: ");
+      printf("\nServer: ");
+      bzero(buf, sizeof buf);
       read(sockfd, buf, sizeof(buf));
       printf("%s\n", buf);
     } else if (FD_ISSET(STDIN_FILENO, &readset)) {
-      printf("Message: "); 
-      memset(buf, 0, sizeof(buf));
+      bzero(buf, sizeof(buf));
       scanf("%s", buf);
 
       if (0 == strncasecmp(buf, "quit", 4)) {
