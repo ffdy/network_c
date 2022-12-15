@@ -8,7 +8,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// 缺少一个链表管理断开的连接
+#include "list.h"
+
+struct sockfd_opt {
+  int fd;
+  int (*do_task)(struct sockfd_opt *p_so);
+  struct list_head list;
+};
 
 #define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
 
