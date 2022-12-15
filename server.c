@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+// 缺少一个链表管理断开的连接
+
 #define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
 
 int sockfd, newfd;
@@ -49,14 +51,13 @@ int main(int args, char *argv[]) {
 
   int fd_array[1024], fd_array_len = 0;
   fd_set readset, old_readset;
-  FD_ZERO(&readset);
   FD_ZERO(&old_readset);
   FD_SET(sockfd, &old_readset);
   nfds = MAX(sockfd, nfds);
 
   while (1) {
     readset = old_readset;
-    select(nfds, &readset, NULL, NULL, NULL);
+    select(nfds + 1, &readset, NULL, NULL, NULL);
 
     if (FD_ISSET(sockfd, &readset)) {
       if (-1 == (newfd = accept(sockfd, (struct sockaddr *)&client_addr,
@@ -64,6 +65,8 @@ int main(int args, char *argv[]) {
         perror("accept");
         exit(1);
       }
+      printf("Connect from %s\n", inet_ntoa(client_addr.sin_addr));
+
       FD_SET(newfd, &old_readset);
       nfds = MAX(nfds, newfd);
       fd_array[fd_array_len++] = newfd;
@@ -76,7 +79,8 @@ int main(int args, char *argv[]) {
           // 连接关闭
           printf("connect from %s close\n", inet_ntoa(client_addr.sin_addr));
           close(fd_array[i]);
-          return 0;
+          FD_CLR(fd_array[i], &old_readset);
+          continue;
         }
         printf("Message from %s : %s\n", inet_ntoa(client_addr.sin_addr), buf);
 
