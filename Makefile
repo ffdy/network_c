@@ -8,3 +8,6 @@ client-debug: client.c
 	gcc client.c -o client -g
 all: server client
 debug: server-debug client-debug
+
+clean:
+	rm server client
