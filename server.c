@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -68,44 +66,7 @@ int create_newfd(struct sockfd_opt *p_so) {
   return 0;
 }
 
-int do_tast(int num) {
-  printf("%d\n", num);
-  return 0;
-}
-
-struct list_test {
-  int a;
-  int (*do_task)(int num);
-  struct list_t *list_ptr;
-};
-
-void task() {
-  struct list_t test_list;
-  list_init(&test_list);
-  for (int i = 0; i < 10; i++) {
-    struct list_test *list_testa =
-        (struct list_test *)malloc(sizeof(struct list_test));
-    list_testa->a = i;
-    list_testa->do_task = do_tast;
-    list_testa->list_ptr = list_add_tail(list_testa, &test_list);
-  }
-
-  for (struct list_t *p = test_list.next; p != &test_list; p = p->next) {
-    ((struct list_test *)p->elem)->do_task(((struct list_test *)p->elem)->a);
-    if (((struct list_test *)p->elem)->a == 5) {
-      list_del(p);
-    }
-  }
-
-  for (struct list_t *p = test_list.next; p != &test_list; p = p->next) {
-    ((struct list_test *)p->elem)->do_task(((struct list_test *)p->elem)->a);
-  }
-
-}
-
 int main(int args, char *argv[]) {
-
-  // task();
 
   if (2 != args) {
     printf("Parameter error\n\n\tSample: %s %s\n", argv[0], "50000");
