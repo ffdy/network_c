@@ -2,9 +2,49 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "make debug",
+      "label": "all",
       "command": "make",
-      "args": ["debug"]
+      "args": [],
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "server",
+      "command": "make",
+      "args": [
+        "server"
+      ]
+    },
+    {
+      "label": "client",
+      "command": "make",
+      "args": [
+        "client"
+      ]
+    },
+    {
+      "label": "debug",
+      "command": "make",
+      "args": [
+        "debug"
+      ]
+    },
+    {
+      "label": "server debug",
+      "command": "make",
+      "args": [
+        "server-debug"
+      ]
+    },
+    {
+      "label": "client debug",
+      "command": "make",
+      "args": [
+        "client-debug"
+      ]
     }
   ],
   
