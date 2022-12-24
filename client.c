@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <time.h>
+#include <fcntl.h>
 
 #define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
 
@@ -19,7 +19,8 @@ socklen_t server_addr_len;
 time_t td;
 struct tm tm;
 
-char buf[1024];
+char sock_buf[1024];
+char input_buf[1024];
 
 int main(int args, char *argv[]) {
 
@@ -44,35 +45,45 @@ int main(int args, char *argv[]) {
   }
   printf("Connected to %s\n", inet_ntoa(server_addr.sin_addr));
 
-  int recv_len;
-  int nfds = 0;
-  fd_set readset, old_readset;
+  int recv_len, fcntl_flags;
+  if (-1 == (fcntl_flags = fcntl(sockfd, F_GETFL, 0))) {
+    perror("fcntl get flags");
+    exit(1);
+  }
 
-  FD_ZERO(&old_readset);
-  FD_SET(STDIN_FILENO, &old_readset);
-  FD_SET(sockfd, &old_readset);
-  nfds = MAX(nfds, sockfd);
+  fcntl_flags |= O_NONBLOCK;
+  if (-1 == fcntl(sockfd, F_SETFL, fcntl_flags)) {
+    perror("fcntl set flags");
+    exit(1);
+  }
+
+  if (-1 == (fcntl_flags = fcntl(STDIN_FILENO, F_GETFL, 0))) {
+    perror("fcntl get flags");
+    exit(1);
+  }
+
+  fcntl_flags |= O_NONBLOCK;
+  if (-1 == fcntl(STDIN_FILENO, F_SETFL, fcntl_flags)) {
+    perror("fcntl set flags");
+    exit(1);
+  }
 
   while (1) {
-    printf("Message: ");
+    sleep(2);
+    printf("\nMessage: ");
     fflush(stdout);
 
-    readset = old_readset;
-    if (-1 == select(nfds + 1, &readset, NULL, NULL, NULL)) {
-      perror("select");
-      exit(1);
+    if (-1 == read(sockfd, sock_buf, sizeof(sock_buf))) {
+      perror("read");
+    } else {
+      printf("\nServer: %s\n", sock_buf);
+      bzero(sock_buf, sizeof sock_buf);
     }
 
-    if (FD_ISSET(sockfd, &readset)) {
-      printf("\nServer: ");
-      bzero(buf, sizeof buf);
-      read(sockfd, buf, sizeof(buf));
-      printf("%s\n", buf);
-    } else if (FD_ISSET(STDIN_FILENO, &readset)) {
-      bzero(buf, sizeof(buf));
-      scanf("%s", buf);
-
-      if (0 == strncasecmp(buf, "quit", 4)) {
+    if (-1 == scanf("%s", input_buf)) {
+      perror("scanf");
+    } else {
+      if (0 == strncasecmp(input_buf, "quit", 4)) {
         printf("connect close\n");
         close(sockfd);
         return 0;
@@ -81,8 +92,9 @@ int main(int args, char *argv[]) {
       time(&td);
       tm = *localtime(&td);
 
-      write(sockfd, buf, strlen(buf));
+      write(sockfd, input_buf, strlen(input_buf));
       printf("Send successfully\n");
+      bzero(input_buf, sizeof input_buf);
     }
   }
   return 0;
