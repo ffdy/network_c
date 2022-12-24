@@ -1,4 +1,7 @@
 #include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <malloc.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +9,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <malloc.h>
 
 #include "list.h"
 
@@ -16,18 +18,12 @@ struct sockfd_opt {
   struct list_t *list_node;
 };
 
-#define MAX(sockfd, nfds) (sockfd > nfds ? sockfd : nfds)
-
 int sockfd, newfd, so_reuseaddr = 1;
 struct sockaddr_in server_addr, client_addr;
 socklen_t server_addr_len, client_addr_len;
 
 char buf[1024];
-
-int fd_list_len = 0;
 struct list_t fd_list;
-int nfds = -1;
-fd_set readset, old_readset;
 
 int read_from_client(struct sockfd_opt *p_so) {
   bzero(buf, sizeof buf);
@@ -36,12 +32,14 @@ int read_from_client(struct sockfd_opt *p_so) {
     // 连接关闭
     printf("connect from %s close\n", inet_ntoa(client_addr.sin_addr));
     close(p_so->fd);
-    FD_CLR(p_so->fd, &old_readset);
 
     list_del(p_so->list_node);
     free(p_so);
 
     return 0;
+  } else if (do_len == -1) {
+    perror("read");
+    return 1;
   }
   printf("Message from %s : %s\n", inet_ntoa(client_addr.sin_addr), buf);
 
@@ -52,16 +50,28 @@ int read_from_client(struct sockfd_opt *p_so) {
 int create_newfd(struct sockfd_opt *p_so) {
   struct sockfd_opt *p = (struct sockfd_opt *)malloc(sizeof(struct sockfd_opt));
   if (-1 == (p->fd = accept(p_so->fd, (struct sockaddr *)&client_addr,
-                          &client_addr_len))) {
+                            &client_addr_len))) {
     perror("accept");
-    return 1;
+    if (errno == EAGAIN)
+      return 0;
+    exit(1);
   }
   printf("Connect from %s\n", inet_ntoa(client_addr.sin_addr));
 
-  FD_SET(p->fd, &old_readset);
-  nfds = MAX(nfds, p->fd);
   p->do_task = read_from_client;
   p->list_node = list_add_tail(p, &fd_list);
+
+  int fcntl_flags;
+  if (-1 == (fcntl_flags = fcntl(p->fd, F_GETFL, 0))) {
+    perror("fcntl get flags");
+    exit(1);
+  }
+
+  fcntl_flags |= O_NONBLOCK;
+  if (-1 == fcntl(p->fd, F_SETFL, fcntl_flags)) {
+    perror("fcntl set flags");
+    exit(1);
+  }
 
   return 0;
 }
@@ -83,10 +93,24 @@ int main(int args, char *argv[]) {
     exit(1);
   }
 
+  // socket地址复用
   if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr,
                        sizeof(so_reuseaddr))) {
     perror("setsockopt");
     exit(1);
+  }
+
+  // 获取当前工作模式
+  int fcntl_flags;
+  if (-1 == (fcntl_flags = fcntl(sockfd, F_GETFL, 0))) {
+    perror("fcntl getfl");
+    exit(1);
+  }
+
+  // 添加设置非组设工作模式
+  fcntl_flags |= O_NONBLOCK;
+  if (-1 == fcntl(sockfd, F_SETFL, fcntl_flags)) {
+    perror("fcntl setfl");
   }
 
   if (-1 ==
@@ -101,10 +125,6 @@ int main(int args, char *argv[]) {
   }
 
   printf("Start to be connected\n");
-  
-  FD_ZERO(&old_readset);
-  FD_SET(sockfd, &old_readset);
-  nfds = MAX(sockfd, nfds);
   list_init(&fd_list);
 
   struct sockfd_opt sockfd_opt;
@@ -113,13 +133,9 @@ int main(int args, char *argv[]) {
   sockfd_opt.list_node = list_add_tail(&sockfd_opt, &fd_list);
 
   while (1) {
-    readset = old_readset;
-    select(nfds + 1, &readset, NULL, NULL, NULL);
-
+    sleep(1);
     for (struct list_t *p = fd_list.next; p != &fd_list; p = p->next) {
-      if (FD_ISSET(((struct sockfd_opt *)p->elem)->fd, &readset)) {
-        ((struct sockfd_opt *)p->elem)->do_task((struct sockfd_opt *)p->elem);
-      }
+      ((struct sockfd_opt *)p->elem)->do_task((struct sockfd_opt *)p->elem);
     }
   }
 
